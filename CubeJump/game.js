@@ -33,6 +33,10 @@ let upPressedLastFrame = false; // Track up key for jump edge detection
 let playerOnGround = false;
 let canDoubleJump = false; // Track if player can double jump
 let hasDoubleJumped = false; // Track if player has used double jump
+// Add double jump cooldown variables
+let doubleJumpCooldown = 0; // Cooldown timer in frames
+const doubleJumpCooldownMax = 82; // 1.2 seconds at 60fps (changed from 30)
+// Removed flash effect variable
 let highestY = window.innerHeight;
 let score = 0;
 const scoreElement = document.getElementById('score');
@@ -596,9 +600,28 @@ function checkGround(pairs) {
             // Check all platform types, including ground_platform
             const platform = bodyA.label.includes('platform') ? bodyA : 
                            (bodyB.label.includes('platform') ? bodyB : null);
+                           
+            // Check for interactive objects and debris
+            const interactiveObj = bodyA.label === 'interactive_cube' || bodyA.label === 'interactive_object' ? bodyA : 
+                                 (bodyB.label === 'interactive_cube' || bodyB.label === 'interactive_object' ? bodyB : null);
+            
+            // Check for effect particles (debris)
+            const debris = bodyA.label === 'effect' ? bodyA : 
+                         (bodyB.label === 'effect' ? bodyB : null);
+            
             if (platform) {
                 // Check if player is on top of the platform
                 if (Math.abs(player.position.y - platform.position.y) < (40 / 2 + platformHeight / 2 + 5) && player.velocity.y >= 0) {
+                    return true;
+                }
+            } else if (interactiveObj) {
+                // Check if player is on top of interactive object
+                if (Math.abs(player.position.y - interactiveObj.position.y) < (40 / 2 + interactiveObj.circleRadius || 10) && player.velocity.y >= 0) {
+                    return true;
+                }
+            } else if (debris) {
+                // Check if player is on top of debris
+                if (Math.abs(player.position.y - debris.position.y) < (40 / 2 + 5) && player.velocity.y >= 0) {
                     return true;
                 }
             }
@@ -616,6 +639,13 @@ Events.on(engine, 'beforeUpdate', () => {
         canDoubleJump = true;
         hasDoubleJumped = false;
     }
+    
+    // Update double jump cooldown
+    if (doubleJumpCooldown > 0) {
+        doubleJumpCooldown--;
+    }
+    
+    // Removed flash effect update code
 
     // Player movement
     const velocity = player.velocity;
@@ -637,11 +667,15 @@ Events.on(engine, 'beforeUpdate', () => {
             Body.applyForce(player, player.position, { x: 0, y: -1.1 * 0.4 * 1.2 });
         }
         // Double jump (in air)
-        else if (canDoubleJump && !hasDoubleJumped) {
+        else if (canDoubleJump && !hasDoubleJumped && doubleJumpCooldown <= 0) {
             Body.setVelocity(player, { x: player.velocity.x, y: 0 }); // Reset vertical velocity
             Body.applyForce(player, player.position, { x: 0, y: -1.1 * 0.4 * 1.2 });
             hasDoubleJumped = true;
             canDoubleJump = false;
+            
+            // Set cooldown
+            doubleJumpCooldown = doubleJumpCooldownMax;
+            // Removed flash effect code
             
             // Double jump effect particles
             for (let i = 0; i < 10; i++) {
@@ -660,6 +694,7 @@ Events.on(engine, 'beforeUpdate', () => {
                 Composite.add(world, jumpParticle);
             }
         }
+        // Removed cooldown flash feedback
     }
     upPressedLastFrame = keys.up;
 
@@ -918,27 +953,8 @@ Events.on(engine, 'collisionStart', (event) => {
                     y: -Math.abs(player.velocity.y) * 1.5
                 });
                 
-                // Bouncy platform effect particles
-                for (let i = 0; i < 15; i++) {
-                    const x = platform.position.x + (Math.random() - 0.5) * platformWidth;
-                    const y = platform.position.y - platformHeight/2;
-                    
-                    const particle = Bodies.circle(x, y, 2 + Math.random() * 3, {
-                        isSensor: true,
-                        render: { 
-                            fillStyle: 'rgba(200, 200, 255, 0.7)',
-                        },
-                        label: 'effect'
-                    });
-                    
-                    Body.setVelocity(particle, {
-                        x: (Math.random() - 0.5) * 3,
-                        y: -Math.random() * 5 - 2
-                    });
-                    
-                    effectParticles.push(particle);
-                    Composite.add(world, particle);
-                }
+                // Removed bouncy platform effect particles as requested
+                // No debris will be created for jump pads
             }
         }
         
@@ -1013,6 +1029,8 @@ Events.on(render, 'afterRender', function() {
         }
     });
     
+    // Removed cooldown indicator rendering
+    
     context.restore();
 });
 
@@ -1027,3 +1045,27 @@ window.addEventListener('resize', () => {
     Body.setPosition(ground, {x: window.innerWidth / 2, y: window.innerHeight + 5});
         Body.setVertices(ground, Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 5, window.innerWidth, 20).vertices);
     });
+
+// Additional check to reset double jump when touching any object
+Events.on(engine, 'collisionActive', (event) => {
+    const pairs = event.pairs;
+    for (const pair of pairs) {
+        const { bodyA, bodyB } = pair;
+        
+        // If player collides with any interactive object or debris from below or sides
+        if ((bodyA.label === 'player' && (bodyB.label === 'interactive_cube' || bodyB.label === 'interactive_object' || bodyB.label === 'effect')) ||
+            ((bodyA.label === 'interactive_cube' || bodyA.label === 'interactive_object' || bodyA.label === 'effect') && bodyB.label === 'player')) {
+            
+            const obj = bodyA.label === 'player' ? bodyB : bodyA;
+            
+            // If player is on top of the object
+            if (player.position.y < obj.position.y) {
+                // Only reset double jump if cooldown has expired
+                if (doubleJumpCooldown <= 0) {
+                    canDoubleJump = true;
+                    hasDoubleJumped = false;
+                }
+            }
+        }
+    }
+});
