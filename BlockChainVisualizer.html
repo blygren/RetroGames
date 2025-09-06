@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Visualization Protocol</title>
+    <style>
+        body {
+            background-color: #0a0a0a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .matrix-container {
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 20, 0, 0.8);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .matrix {
+            display: grid;
+            width: 100%;
+            height: 100%;
+        }
+
+        .cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: min(1.5vw, 16px);
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .cell.highlight {
+            color: #ffffff;
+            text-shadow: 0 0 10px #00ffff;
+            z-index: 2;
+        }
+        
+        .cell.critical {
+            color: #ff0000;
+            text-shadow: 0 0 10px #ff0000;
+            font-weight: bold;
+            z-index: 3;
+        }
+        
+        .cell.processing {
+            color: #ffcc00;
+            text-shadow: 0 0 5px #ffcc00;
+            z-index: 1;
+        }
+
+        .cell.verified {
+            color: #00ffaa;
+            text-shadow: 0 0 8px #00ffaa;
+            z-index: 2;
+        }
+        
+        .cell.mining {
+            color: #ff00ff;
+            text-shadow: 0 0 12px #ff00ff;
+            z-index: 3;
+        }
+        
+        .binary {
+            position: absolute;
+            font-size: 0.5em;
+            opacity: 0.5;
+            color: #00aa00;
+        }
+        
+        .hex {
+            position: absolute;
+            font-size: 0.4em;
+            opacity: 0.6;
+            color: #0088ff;
+            font-family: monospace;
+        }
+
+       
+        
+        
+        
+        
+        
+        .connection-line {
+            position: absolute;
+            background-color: rgba(0, 255, 0, 0.15);
+            z-index: 1;
+            pointer-events: none;
+            transform-origin: 0 0;
+        }
+        
+        .hash-path {
+            position: absolute;
+            border-top: 1px dashed rgba(255, 0, 255, 0.3);
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 0.3; }
+            100% { opacity: 0.7; }
+        }
+        
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="matrix-container">
+        <div id="matrix" class="matrix"></div>
+        <div id="blockchain-data" class="blockchain-data"></div>
+        <div id="mempool" class="mempool"></div>
+    </div>
+
+    <script>
+        // Advanced blockchain matrix configuration
+        const config = {
+            cellSize: 25, // Base cell size in pixels
+            updateSpeed: 100,
+            highlightChance: 0.015,
+            criticalChance: 0.006,
+            processingChance: 0.02,
+            verifiedChance: 0.01,
+            miningChance: 0.003,
+            specialPatterns: true,
+            useHexadecimal: true,
+            difficulty: 3,           // Number of leading zeros required for "mining"
+            blockTime: 8000,         // ms between new blocks
+            transactionRate: 1500,   // ms between new transactions
+            connectionLines: true,
+            hashPathways: true,
+            maxConnections: 15,      // Maximum number of connection lines
+            maxHashPaths: 8          // Maximum number of hash pathways
+        };
+
+        // Blockchain simulation state
+        const blockchain = {
+            blocks: [],
+            currentBlock: {
+                index: 0,
+                timestamp: Date.now(),
+                transactions: [],
+                previousHash: "0000000000000000",
+                nonce: 0,
+                difficulty: config.difficulty,
+                merkleRoot: "",
+                hash: ""
+            },
+            mempool: [],
+            pendingTransactions: [],
+            connectionLines: [],
+            hashPaths: [],
+            miningCells: new Set(),
+            verifiedCells: new Set()
+        };
+
+        // Simple hash function (for demonstration purposes)
+        function simpleHash(input) {
+            let hash = 0;
+            if (input.length === 0) return hash.toString(16).padStart(8, '0');
+            
+            for (let i = 0; i < input.length; i++) {
+                const char = input.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32bit integer
+            }
+            
+            // Convert to hex string and ensure it's 8 characters
+            return (hash >>> 0).toString(16).padStart(8, '0');
+        }
+        
+        // More complex hash function (SHA-256 simulation)
+        function simulateSHA256(input) {
+            // This is NOT actual SHA-256, just a simulation for visual effect
+            const bitRotate = (n, b) => ((n << b) | (n >>> (32 - b))) >>> 0;
+            
+            let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;
+            let h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+            
+            // Convert input to numerical values
+            const values = [];
+            for (let i = 0; i < input.length; i++) {
+                values.push(input.charCodeAt(i));
+            }
+            
+            // Simple mixing function
+            for (let i = 0; i < values.length; i += 16) {
+                const chunk = values.slice(i, i + 16);
+                let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+                
+                for (let j = 0; j < 16; j++) {
+                    const val = chunk[j] || 0;
+                    const temp1 = (h + val + (e & f) + ((e >>> 2) ^ (e >>> 13) ^ (e >>> 22))) >>> 0;
+                    const temp2 = ((a >>> 6) ^ (a >>> 11) ^ (a >>> 25)) + ((a & b) ^ (~a & c)) >>> 0;
+                    
+                    h = g;
+                    g = f;
+                    f = e;
+                    e = (d + temp1) >>> 0;
+                    d = c;
+                    c = b;
+                    b = a;
+                    a = (temp1 + temp2) >>> 0;
+                }
+                
+                h0 = (h0 + a) >>> 0;
+                h1 = (h1 + b) >>> 0;
+                h2 = (h2 + c) >>> 0;
+                h3 = (h3 + d) >>> 0;
+                h4 = (h4 + e) >>> 0;
+                h5 = (h5 + f) >>> 0;
+                h6 = (h6 + g) >>> 0;
+                h7 = (h7 + h) >>> 0;
+            }
+            
+            // Format the result
+            return [h0, h1, h2, h3, h4, h5, h6, h7]
+                .map(h => h.toString(16).padStart(8, '0'))
+                .join('')
+                .substring(0, 64);
+        }
+        
+        // Calculate merkle root from transactions
+        function calculateMerkleRoot(transactions) {
+            if (transactions.length === 0) return "0".repeat(64);
+            
+            // Clone the transactions array
+            let hashes = transactions.map(tx => tx.hash);
+            
+            // If odd number of transactions, duplicate the last one
+            if (hashes.length % 2 === 1) {
+                hashes.push(hashes[hashes.length - 1]);
+            }
+            
+            // Continue hashing pairs until we have just one hash
+            while (hashes.length > 1) {
+                const newHashes = [];
+                for (let i = 0; i < hashes.length; i += 2) {
+                    const combinedHash = simulateSHA256(hashes[i] + hashes[i + 1]);
+                    newHashes.push(combinedHash);
+                }
+                hashes = newHashes;
+                
+                // If odd number of hashes, duplicate the last one
+                if (hashes.length % 2 === 1 && hashes.length > 1) {
+                    hashes.push(hashes[hashes.length - 1]);
+                }
+            }
+            
+            return hashes[0];
+        }
+        
+        // Generate a block hash
+        function calculateBlockHash(block) {
+            const blockString = `${block.index}${block.previousHash}${block.timestamp}${block.merkleRoot}${block.nonce}`;
+            return simulateSHA256(blockString);
+        }
+        
+        // Check if a hash meets the difficulty requirement
+        function meetsHashDifficulty(hash, difficulty) {
+            return hash.substring(0, difficulty) === "0".repeat(difficulty);
+        }
+        
+        // Generate a pseudorandom transaction
+        function generateTransaction() {
+            const from = Array.from({length: 5}, () => Math.floor(Math.random() * 16).toString(16)).join('');
+            const to = Array.from({length: 5}, () => Math.floor(Math.random() * 16).toString(16)).join('');
+            const amount = (Math.random() * 10).toFixed(4);
+            const fee = (Math.random() * 0.01).toFixed(5);
+            const timestamp = Date.now();
+            const tx = {
+                from: `0x${from}`,
+                to: `0x${to}`,
+                amount,
+                fee,
+                timestamp,
+                data: Math.random().toString(36).substring(2, 10)
+            };
+            tx.hash = simulateSHA256(`${tx.from}${tx.to}${tx.amount}${tx.timestamp}${tx.data}`);
+            return tx;
+        }
+
+        // Calculate grid dimensions based on screen size
+        function calculateGrid() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            config.cols = Math.floor(width / config.cellSize);
+            config.rows = Math.floor(height / config.cellSize);
+            
+            return { cols: config.cols, rows: config.rows };
+        }
+
+        // Initialize the matrix
+        function initMatrix() {
+            const matrix = document.getElementById('matrix');
+            const { cols, rows } = calculateGrid();
+            
+            matrix.innerHTML = '';
+            matrix.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            matrix.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+            
+            // Create the initial blockchain state
+            blockchain.blocks = [];
+            blockchain.currentBlock = {
+                index: 0,
+                timestamp: Date.now(),
+                transactions: [],
+                previousHash: "0000000000000000",
+                nonce: 0,
+                difficulty: config.difficulty,
+                merkleRoot: "",
+                hash: ""
+            };
+            blockchain.mempool = [];
+            blockchain.connectionLines = [];
+            blockchain.hashPaths = [];
+            blockchain.miningCells.clear();
+            blockchain.verifiedCells.clear();
+            
+            // Clear any existing visualization elements
+            document.querySelectorAll('.connection-line, .hash-path').forEach(el => el.remove());
+            
+            // Generate cells with sophisticated data attributes
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.dataset.address = `0x${simpleHash(`${i}${j}${Date.now()}`)}`;
+                    
+                    // Generate initial value (decimal or hex)
+                    const value = Math.floor(Math.random() * 16);
+                    cell.dataset.value = value;
+                    cell.textContent = config.useHexadecimal ? value.toString(16).toUpperCase() : value;
+                    
+                    // Assign cryptographic properties
+                    cell.dataset.nonce = Math.floor(Math.random() * 1000000);
+                    cell.dataset.hash = simulateSHA256(`${cell.dataset.address}${cell.dataset.value}${cell.dataset.nonce}`);
+                    
+                    // Determine if this cell is a special node
+                    if (Math.random() < 0.03) {
+                        cell.dataset.nodeType = Math.random() < 0.3 ? 'miner' : 'validator';
+                    }
+                    
+                    // Add binary sub-element to some cells
+                    if (Math.random() < 0.15) {
+                        const binary = document.createElement('span');
+                        binary.className = 'binary';
+                        binary.textContent = Math.random() > 0.5 ? '1' : '0';
+                        binary.style.top = `${Math.random() * 80}%`;
+                        binary.style.left = `${Math.random() * 80}%`;
+                        cell.appendChild(binary);
+                    }
+                    
+                    // Add hex code to some cells
+                    if (Math.random() < 0.1) {
+                        const hex = document.createElement('span');
+                        hex.className = 'hex';
+                        const hexValue = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, '0');
+                        hex.textContent = `#${hexValue}`;
+                        hex.style.top = `${Math.random() * 70}%`;
+                        hex.style.left = `${Math.random() * 70}%`;
+                        cell.appendChild(hex);
+                    }
+                    
+                    matrix.appendChild(cell);
+                }
+            }
+            
+            // Initialize blockchain display
+            updateBlockchainDisplay();
+        }
+
+        // Advanced matrix update with blockchain simulation
+        function updateMatrix() {
+            const cells = document.querySelectorAll('.cell');
+            const { cols, rows } = calculateGrid();
+            
+            // Attempt mining (proof of work)
+            simulateMining();
+            
+            // Create special pattern occasionally
+            if (config.specialPatterns && Math.random() < 0.05) {
+                createSpecialPattern(cells, cols, rows);
+            }
+            
+            // Update visualization of connections and hash paths
+            updateConnections();
+            
+            cells.forEach(cell => {
+                // Keep previous values for calculations
+                const prevValue = parseInt(cell.dataset.value);
+                const prevHash = cell.dataset.hash;
+                
+                // Base chance to update a cell
+                if (Math.random() < 0.08) {
+                    // Clear existing visual classes but maintain node properties
+                    const isMiningCell = blockchain.miningCells.has(cell.dataset.address);
+                    const isVerifiedCell = blockchain.verifiedCells.has(cell.dataset.address);
+                    
+                    cell.classList.remove('highlight', 'critical', 'processing');
+                    
+                    if (isMiningCell) {
+                        cell.classList.add('mining');
+                    } else if (isVerifiedCell) {
+                        cell.classList.add('verified');
+                    }
+                    
+                    // Weighted algorithm for new values with cryptographic properties
+                    let newValue;
+                    const r = Math.random();
+                    
+                    if (r < 0.6) {
+                        // Regular random number
+                        newValue = Math.floor(Math.random() * 16);
+                    } else if (r < 0.75) {
+                        // Value derived from its own hash (demonstrating hash usage)
+                        newValue = parseInt(prevHash.substring(0, 1), 16);
+                    } else if (r < 0.85) {
+                        // XOR with neighboring cells (demonstrating data propagation)
+                        const row = parseInt(cell.dataset.row);
+                        const col = parseInt(cell.dataset.col);
+                        
+                        // Get values from neighboring cells if they exist
+                        let neighborSum = 0;
+                        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                        
+                        directions.forEach(([dr, dc]) => {
+                            const neighborRow = row + dr;
+                            const neighborCol = col + dc;
+                            
+                            if (neighborRow >= 0 && neighborRow < rows && neighborCol >= 0 && neighborCol < cols) {
+                                const neighborIdx = neighborRow * cols + neighborCol;
+                                if (cells[neighborIdx]) {
+                                    neighborSum ^= parseInt(cells[neighborIdx].dataset.value);
+                                }
+                            }
+                        });
+                        
+                        newValue = (prevValue ^ neighborSum) % 16;
+                    } else {
+                        // Complex algorithm (simulating blockchain operations)
+                        const row = parseInt(cell.dataset.row);
+                        const col = parseInt(cell.dataset.col);
+                        const nonce = parseInt(cell.dataset.nonce);
+                        
+                        // Increment nonce as in mining operations
+                        cell.dataset.nonce = (nonce + 1) % 1000000;
+                        
+                        // Create a hash-based value
+                        const positionHash = simpleHash(`${row}${col}${cell.dataset.nonce}`);
+                        newValue = parseInt(positionHash.substring(0, 1), 16);
+                    }
+                    
+                    cell.dataset.value = newValue;
+                    cell.textContent = config.useHexadecimal ? newValue.toString(16).toUpperCase() : newValue;
+                    
+                    // Recalculate hash after value change
+                    cell.dataset.hash = simulateSHA256(`${cell.dataset.address}${cell.dataset.value}${cell.dataset.nonce}`);
+                    
+                    // Check if this hash meets difficulty (simulating proof-of-work success)
+                    if (!isMiningCell && !isVerifiedCell && meetsHashDifficulty(cell.dataset.hash, 2)) {
+                        blockchain.miningCells.add(cell.dataset.address);
+                        cell.classList.add('mining');
+                        
+                        // Add a transaction to the mempool
+                        if (blockchain.mempool.length < 20) {
+                            blockchain.mempool.push(generateTransaction());
+                            updateBlockchainDisplay();
+                        }
+                    }
+                    
+                    // Apply visual effects for cells that aren't mining or verified
+                    if (!isMiningCell && !isVerifiedCell) {
+                        if (Math.random() < config.criticalChance) {
+                            cell.classList.add('critical');
+                        } else if (Math.random() < config.highlightChance) {
+                            cell.classList.add('highlight');
+                        } else if (Math.random() < config.processingChance) {
+                            cell.classList.add('processing');
+                        }
+                    }
+                }
+                
+                // Update binaries and hex codes independently
+                const binary = cell.querySelector('.binary');
+                if (binary && Math.random() < 0.2) {
+                    binary.textContent = Math.random() > 0.5 ? '1' : '0';
+                }
+                
+                const hex = cell.querySelector('.hex');
+                if (hex && Math.random() < 0.1) {
+                    // Update the hex value
+                    const hexValue = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, '0');
+                    hex.textContent = `#${hexValue}`;
+                }
+            });
+        }
+        
+        // Update blockchain connections visualization
+        function updateConnections() {
+            const matrix = document.getElementById('matrix');
+            const container = document.querySelector('.matrix-container');
+            
+            // Remove some existing connections
+            blockchain.connectionLines = blockchain.connectionLines.filter(line => {
+                if (Math.random() < 0.1) {
+                    line.element.remove();
+                    return false;
+                }
+                return true;
+            });
+            
+            // Remove some existing hash paths
+            blockchain.hashPaths = blockchain.hashPaths.filter(path => {
+                if (Math.random() < 0.15) {
+                    path.element.remove();
+                    return false;
+                }
+                return true;
+            });
+            
+            // Create new connections if we're below the limit
+            if (config.connectionLines && blockchain.connectionLines.length < config.maxConnections) {
+                const minerCells = Array.from(blockchain.miningCells);
+                const verifiedCells = Array.from(blockchain.verifiedCells);
+                
+                if (minerCells.length > 0 && verifiedCells.length > 0) {
+                    // Select random miner and verified cell
+                    const fromAddress = minerCells[Math.floor(Math.random() * minerCells.length)];
+                    const toAddress = verifiedCells[Math.floor(Math.random() * verifiedCells.length)];
+                    
+                    const fromCell = document.querySelector(`[data-address="${fromAddress}"]`);
+                    const toCell = document.querySelector(`[data-address="${toAddress}"]`);
+                    
+                    if (fromCell && toCell) {
+                        const fromRect = fromCell.getBoundingClientRect();
+                        const toRect = toCell.getBoundingClientRect();
+                        
+                        const fromX = fromRect.left + fromRect.width/2;
+                        const fromY = fromRect.top + fromRect.height/2;
+                        const toX = toRect.left + toRect.width/2;
+                        const toY = toRect.top + toRect.height/2;
+                        
+                        const length = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+                        const angle = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
+                        
+                        const line = document.createElement('div');
+                        line.className = 'connection-line pulse';
+                        line.style.width = `${length}px`;
+                        line.style.height = '1px';
+                        line.style.left = `${fromX}px`;
+                        line.style.top = `${fromY}px`;
+                        line.style.transform = `rotate(${angle}deg)`;
+                        
+                        container.appendChild(line);
+                        
+                        blockchain.connectionLines.push({
+                            from: fromAddress,
+                            to: toAddress,
+                            element: line
+                        });
+                    }
+                }
+            }
+            
+            // Create new hash paths if we're below the limit
+            if (config.hashPathways && blockchain.hashPaths.length < config.maxHashPaths) {
+                const cells = document.querySelectorAll('.cell');
+                const specialCells = Array.from(cells).filter(cell => 
+                    cell.classList.contains('mining') || 
+                    cell.classList.contains('critical') ||
+                    cell.classList.contains('verified')
+                );
+                
+                if (specialCells.length > 1) {
+                    // Select random special cells
+                    const fromCell = specialCells[Math.floor(Math.random() * specialCells.length)];
+                    const toCell = specialCells[Math.floor(Math.random() * specialCells.length)];
+                    
+                    if (fromCell !== toCell) {
+                        const fromRect = fromCell.getBoundingClientRect();
+                        const toRect = toCell.getBoundingClientRect();
+                        
+                        const fromX = fromRect.left + fromRect.width/2;
+                        const fromY = fromRect.top + fromRect.height/2;
+                        const toX = toRect.left + toRect.width/2;
+                        const toY = toRect.top + toRect.height/2;
+                        
+                        const length = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+                        const angle = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
+                        
+                        const path = document.createElement('div');
+                        path.className = 'hash-path pulse';
+                        path.style.width = `${length}px`;
+                        path.style.left = `${fromX}px`;
+                        path.style.top = `${fromY}px`;
+                        path.style.transform = `rotate(${angle}deg)`;
+                        
+                        container.appendChild(path);
+                        
+                        blockchain.hashPaths.push({
+                            from: fromCell.dataset.address,
+                            to: toCell.dataset.address,
+                            element: path
+                        });
+                    }
+                }
+            }
+        }
+
+        // Simulate the mining process
+        function simulateMining() {
+            // Increment nonce and check hash
+            blockchain.currentBlock.nonce++;
+            blockchain.currentBlock.merkleRoot = calculateMerkleRoot(blockchain.currentBlock.transactions);
+            blockchain.currentBlock.hash = calculateBlockHash(blockchain.currentBlock);
+            
+            // Check if the hash meets difficulty
+            if (meetsHashDifficulty(blockchain.currentBlock.hash, blockchain.currentBlock.difficulty)) {
+                // Block found! Add it to the blockchain
+                blockchain.blocks.push({...blockchain.currentBlock});
+                
+                // Move some mining nodes to verified
+                blockchain.miningCells.forEach(address => {
+                    if (Math.random() < 0.3) {
+                        blockchain.verifiedCells.add(address);
+                        blockchain.miningCells.delete(address);
+                        
+                        const cell = document.querySelector(`[data-address="${address}"]`);
+                        if (cell) {
+                            cell.classList.remove('mining');
+                            cell.classList.add('verified');
+                        }
+                    }
+                });
+                
+                // Create a new block
+                blockchain.currentBlock = {
+                    index: blockchain.currentBlock.index + 1,
+                    timestamp: Date.now(),
+                    transactions: [],
+                    previousHash: blockchain.currentBlock.hash,
+                    nonce: 0,
+                    difficulty: config.difficulty + (Math.random() < 0.3 ? 1 : 0), // Occasionally increase difficulty
+                    merkleRoot: "",
+                    hash: ""
+                };
+                
+                // Move transactions from mempool to current block
+                const txCount = Math.min(
+                    blockchain.mempool.length,
+                    Math.floor(Math.random() * 5) + 1
+                );
+                
+                for (let i = 0; i < txCount; i++) {
+                    if (blockchain.mempool.length > 0) {
+                        blockchain.currentBlock.transactions.push(
+                            blockchain.mempool.shift()
+                        );
+                    }
+                }
+                
+                updateBlockchainDisplay();
+            }
+        }
+        
+        // Process new transactions
+        function processTransactions() {
+            if (blockchain.mempool.length < 30 && Math.random() < 0.3) {
+                blockchain.mempool.push(generateTransaction());
+                updateBlockchainDisplay();
+            }
+        }
+
+        // Create special patterns in the matrix
+        function createSpecialPattern(cells, cols, rows) {
+            const patternType = Math.floor(Math.random() * 6);
+            
+            switch (patternType) {
+                case 0: // Diagonal line (like in the original code)
+                    const startCol = Math.floor(Math.random() * cols);
+                    for (let i = 0; i < Math.min(rows, cols); i++) {
+                        const col = (startCol + i) % cols;
+                        const idx = i * cols + col;
+                        if (cells[idx]) {
+                            cells[idx].classList.add('highlight');
+                            cells[idx].dataset.value = Math.floor(Math.random() * 16);
+                            cells[idx].textContent = config.useHexadecimal ? 
+                                parseInt(cells[idx].dataset.value).toString(16).toUpperCase() : 
+                                cells[idx].dataset.value;
+                        }
+                    }
+                    break;
+                    
+                case 1: // Circle pattern (like in the original code)
+                    const centerRow = Math.floor(Math.random() * rows);
+                    const centerCol = Math.floor(Math.random() * cols);
+                    const radius = Math.floor(Math.min(rows, cols) / 5);
+                    
+                    cells.forEach((cell, idx) => {
+                        const r = Math.floor(idx / cols);
+                        const c = idx % cols;
+                        const distance = Math.sqrt(Math.pow(r - centerRow, 2) + Math.pow(c - centerCol, 2));
+                        
+                        if (Math.abs(distance - radius) < 1) {
+                            cell.classList.add(Math.random() < 0.3 ? 'critical' : 'highlight');
+                            cell.dataset.value = Math.floor(Math.random() * 16);
+                            cell.textContent = config.useHexadecimal ? 
+                                parseInt(cell.dataset.value).toString(16).toUpperCase() : 
+                                cell.dataset.value;
+                        }
+                    });
+                    break;
+                    
+                case 2: // Wave pattern (like in the original code)
+                    const waveRow = Math.floor(Math.random() * rows);
+                    const amplitude = Math.floor(rows / 8);
+                    const frequency = Math.random() * 0.3 + 0.05;
+                    
+                    for (let c = 0; c < cols; c++) {
+                        const offset = Math.floor(amplitude * Math.sin(c * frequency));
+                        const r = (waveRow + offset + rows) % rows;
+                        const idx = r * cols + c;
+                        
+                        if (cells[idx]) {
+                            cells[idx].classList.add('processing');
+                            cells[idx].dataset.value = Math.floor(Math.random() * 16);
+                            cells[idx].textContent = config.useHexadecimal ? 
+                                parseInt(cells[idx].dataset.value).toString(16).toUpperCase() : 
+                                cells[idx].dataset.value;
+                        }
+                    }
+                    break;
+                    
+                case 3: // Block validation pattern (new)
+                    // Simulate a block validation pattern - create a square of verified cells
+                    const blockRow = Math.floor(Math.random() * (rows - 6));
+                    const blockCol = Math.floor(Math.random() * (cols - 6));
+                    const blockSize = Math.floor(Math.random() * 3) + 4;
+                    
+                    for (let r = blockRow; r < blockRow + blockSize; r++) {
+                        for (let c = blockCol; c < blockCol + blockSize; c++) {
+                            if (r >= 0 && r < rows && c >= 0 && c < cols) {
+                                const idx = r * cols + c;
+                                if (cells[idx]) {
+                                    cells[idx].classList.add('verified');
+                                    blockchain.verifiedCells.add(cells[idx].dataset.address);
+                                    
+                                    // Create a block-like structure using hex values
+                                    cells[idx].dataset.value = Math.floor(Math.random() * 16);
+                                    cells[idx].textContent = config.useHexadecimal ? 
+                                        parseInt(cells[idx].dataset.value).toString(16).toUpperCase() : 
+                                        cells[idx].dataset.value;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                    
+                case 4: // Mining pattern (new)
+                    // Simulate a mining pattern - small clusters of mining nodes
+                    const minerCount = Math.floor(Math.random() * 6) + 3;
+                    for (let m = 0; m < minerCount; m++) {
+                        const minerRow = Math.floor(Math.random() * rows);
+                        const minerCol = Math.floor(Math.random() * cols);
+                        const idx = minerRow * cols + minerCol;
+                        
+                        if (cells[idx]) {
+                            cells[idx].classList.add('mining');
+                            blockchain.miningCells.add(cells[idx].dataset.address);
+                            
+                            // Also affect nearby cells
+                            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                            directions.forEach(([dr, dc]) => {
+                                const r = minerRow + dr;
+                                const c = minerCol + dc;
+                                
+                                if (r >= 0 && r < rows && c >= 0 && c < cols) {
+                                    const neighborIdx = r * cols + c;
+                                    if (cells[neighborIdx] && Math.random() < 0.7) {
+                                        cells[neighborIdx].classList.add('processing');
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    break;
+                    
+                case 5: // Hash collision pattern (new)
+                    // Create a pattern that represents hash collisions
+                    const hashValue = simpleHash(Date.now().toString());
+                    const targetDigit = parseInt(hashValue.charAt(0), 16);
+                    
+                    cells.forEach((cell, idx) => {
+                        const cellValue = parseInt(cell.dataset.value);
+                        // Find cells with matching value to highlight "collisions"
+                        if (cellValue === targetDigit) {
+                            if (Math.random() < 0.7) {
+                                cell.classList.add('critical');
+                            }
+                        }
+                    });
+                    break;
+            }
+        }
+        
+        // Update the blockchain display
+        function updateBlockchainDisplay() {
+            const blockchainDisplay = document.getElementById('blockchain-data');
+            const mempoolDisplay = document.getElementById('mempool');
+            
+            // Format current block info
+            let blockInfo = `<div style="color:#00ffaa">BLOCK #${blockchain.currentBlock.index}</div>`;
+            blockInfo += `<div>PREV: ${blockchain.currentBlock.previousHash.substring(0, 8)}...</div>`;
+            blockInfo += `<div>NONCE: ${blockchain.currentBlock.nonce}</div>`;
+            blockInfo += `<div>DIFF: ${blockchain.currentBlock.difficulty}</div>`;
+            blockInfo += `<div>TXs: ${blockchain.currentBlock.transactions.length}</div>`;
+            blockInfo += `<div>HASH: ${blockchain.currentBlock.hash.substring(0, 10)}...</div>`;
+            
+            // Add block history (last 3)
+            if (blockchain.blocks.length > 0) {
+                blockInfo += `<div style="margin-top:5px;color:#aaffaa">CHAIN: ${blockchain.blocks.length} blocks</div>`;
+                
+                const recentBlocks = blockchain.blocks.slice(-3).reverse();
+                recentBlocks.forEach(block => {
+                    blockInfo += `<div style="opacity:0.8">#${block.index}: ${block.hash.substring(0, 8)}...</div>`;
+                });
+            }
+            
+            blockchainDisplay.innerHTML = blockInfo;
+            
+            // Format mempool info
+            let mempoolInfo = `<div style="color:#ffcc00">MEMPOOL: ${blockchain.mempool.length} TXs</div>`;
+            
+            // Show recent transactions
+            const recentTxs = blockchain.mempool.slice(0, 5);
+            recentTxs.forEach(tx => {
+                mempoolInfo += `<div>${tx.from.substring(0, 5)}...→${tx.to.substring(0, 5)}... (${tx.amount})</div>`;
+            });
+            
+            mempoolDisplay.innerHTML = mempoolInfo;
+        }
+
+        // Initialize matrix on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initMatrix();
+            setInterval(updateMatrix, config.updateSpeed);
+            setInterval(processTransactions, config.transactionRate);
+            setInterval(() => {
+                if (Math.random() < 0.1) createSpecialPattern(document.querySelectorAll('.cell'), config.cols, config.rows);
+            }, 2000);
+        });
+        
+        // Recreate grid when window is resized
+        window.addEventListener('resize', () => {
+            // Remove existing connection lines and hash paths
+            document.querySelectorAll('.connection-line, .hash-path').forEach(el => el.remove());
+            blockchain.connectionLines = [];
+            blockchain.hashPaths = [];
+            
+            initMatrix();
+        });
+    </script>
+</body>
+</html>
